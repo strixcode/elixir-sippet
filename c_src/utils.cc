@@ -407,6 +407,7 @@ bool ParseHostAndPort(std::string::const_iterator host_and_port_begin,
   // hex4           =  1*4HEXDIG
   // port           =  1*DIGIT
 
+  bool add_ipv6_brackets = false;
   std::string::const_iterator host_start = host_and_port_begin, host_end;
   if (*host_and_port_begin == '[') {
     // parse an IPv6 address
@@ -419,11 +420,34 @@ bool ParseHostAndPort(std::string::const_iterator host_and_port_begin,
     host_end = ++host_and_port_begin;
   } else {
     // parse a hostname or IPv4 address
+    int colon_count = 0;
     for (; host_and_port_begin < host_and_port_end; host_and_port_begin++) {
-      if (*host_and_port_begin == ':')
+      if (*host_and_port_begin == ':') {
+        colon_count = 1;
         break;
+      }
     }
     host_end = host_and_port_begin;
+
+    // try to detect IPv6 without brackets
+    std::string::const_iterator ipv6_and_port_end = host_and_port_begin + 1;
+    std::string::const_iterator ipv6_last_colon = host_and_port_begin;
+    for (; ipv6_and_port_end < host_and_port_end; ipv6_and_port_end++) {
+      if (*ipv6_and_port_end == ':') {
+        ipv6_last_colon = ipv6_and_port_end;
+        colon_count++;
+      }
+    }
+
+    if (colon_count == 7) {
+      host_and_port_begin = ipv6_and_port_end;
+      host_end = host_and_port_begin;
+      add_ipv6_brackets = true;
+    } else if (colon_count == 8) {
+      host_and_port_begin = ipv6_last_colon;
+      host_end = host_and_port_begin;
+      add_ipv6_brackets = true;
+    }
   }
 
   std::string::const_iterator port_start, port_end;
@@ -452,6 +476,10 @@ bool ParseHostAndPort(std::string::const_iterator host_and_port_begin,
   }
 
   host->assign(host_start, host_end);
+  if (add_ipv6_brackets) {
+      *host = "[" + *host;
+      host->push_back(']');
+  }
   return true;
 }
 
